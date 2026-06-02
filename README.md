@@ -106,6 +106,14 @@ roslaunch fast_livo mapping_avia.launch
 rosbag play YOUR_DOWNLOADED.bag
 ```
 
+**Offline bag mode** (read bag in-process, no rviz by default, log pose/vel with [log_value](thirdparty/log_value)):
+
+```
+roslaunch fast_livo mapping_avia_bag.launch bag:=/data/CBD_Building_01.bag
+```
+
+Logs are written as glog files under `./logs/` by default (relative to the process working directory), e.g. `fastlivo.<host>.<user>.log.INFO.*`. `[VALUE:]` lines are **not** printed to the shell unless `value_log/also_stderr` is true. Parse/plot with `thirdparty/log_value/scripts/log_parser.py`.
+
 
 ## 5. License
 

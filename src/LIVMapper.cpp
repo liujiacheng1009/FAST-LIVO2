@@ -12,6 +12,13 @@ which is included as part of this source code package.
 
 #include "LIVMapper.h"
 
+#include <log_value/log_macros.h>
+#include <log_value/value_logger.h>
+#include <Eigen/Geometry>
+#include <cstdlib>
+#include <filesystem>
+#include <glog/logging.h>
+
 LIVMapper::LIVMapper(ros::NodeHandle &nh)
     : extT(0, 0, 0),
       extR(M3D::Identity())
@@ -45,7 +52,7 @@ LIVMapper::LIVMapper(ros::NodeHandle &nh)
   path.header.frame_id = "camera_init";
 }
 
-LIVMapper::~LIVMapper() {}
+LIVMapper::~LIVMapper() { shutdownValueLog(); }
 
 void LIVMapper::readParameters(ros::NodeHandle &nh)
 {
@@ -113,7 +120,87 @@ void LIVMapper::readParameters(ros::NodeHandle &nh)
   nh.param<bool>("publish/pub_effect_point_en", pub_effect_point_en, false);
   nh.param<bool>("publish/dense_map_en", dense_map_en, false);
 
+  nh.param<bool>("value_log/enable", value_log_en, false);
+  nh.param<std::string>("value_log/dir", value_log_dir, "./logs");
+  nh.param<bool>("value_log/also_stderr", value_log_stderr, false);
+  // Node-private params (e.g. mapping_avia_bag.launch) override global avia.yaml.
+  {
+    ros::NodeHandle pnh("~");
+    pnh.param("value_log/enable", value_log_en, value_log_en);
+    pnh.param("value_log/dir", value_log_dir, value_log_dir);
+    pnh.param("value_log/also_stderr", value_log_stderr, value_log_stderr);
+  }
+
   p_pre->blind_sqr = p_pre->blind * p_pre->blind;
+}
+
+void LIVMapper::initValueLog(int argc, char **argv)
+{
+  if (!value_log_en || value_log_initialized_)
+    return;
+
+  if (value_log_dir.empty())
+    value_log_dir = "./logs";
+
+  try
+  {
+    std::filesystem::path log_path(value_log_dir);
+    if (log_path.is_relative())
+      log_path = std::filesystem::current_path() / log_path;
+    value_log_dir = std::filesystem::absolute(log_path).lexically_normal().string();
+  }
+  catch (...)
+  {
+  }
+  std::filesystem::create_directories(value_log_dir);
+
+  setenv("GLOG_log_dir", value_log_dir.c_str(), 1);
+
+  // glog keeps argv[0] for the log file prefix; must outlive Init (do not use opts.program_name.c_str()).
+  static char glog_prog[] = "fastlivo";
+  static char *glog_argv[] = {glog_prog, nullptr};
+
+  logging::ValueLogger::Options opts;
+  opts.program_name.clear();
+  opts.log_path = value_log_dir;
+  opts.log_to_stderr = false;
+  opts.also_log_to_stderr = value_log_stderr;
+  opts.min_log_level = logging::ValueLogger::Level::INFO;
+
+  logging::ValueLogger::Init(1, glog_argv, opts);
+  logging::ValueLogger::SetLogDirectory(value_log_dir);
+  FLAGS_log_dir = value_log_dir.c_str();
+  FLAGS_logtostderr = 0;
+  FLAGS_alsologtostderr = value_log_stderr ? 1 : 0;
+  FLAGS_stderrthreshold = google::GLOG_FATAL + 1;
+
+  value_log_initialized_ = true;
+  ROS_WARN("[value_log] directory: %s  (files: fastlivo.*.log.INFO.*)", value_log_dir.c_str());
+}
+
+void LIVMapper::shutdownValueLog()
+{
+  if (!value_log_initialized_)
+    return;
+  google::FlushLogFiles(google::GLOG_INFO);
+  google::FlushLogFiles(google::GLOG_WARNING);
+  logging::ValueLogger::Shutdown();
+  value_log_initialized_ = false;
+}
+
+void LIVMapper::logStateValue()
+{
+  if (!value_log_initialized_)
+    return;
+
+  const V3D euler = RotMtoEuler(_state.rot_end);
+  const double roll_deg = euler(0) * 57.29577951308232;
+  const double pitch_deg = euler(1) * 57.29577951308232;
+  const double yaw_deg = euler(2) * 57.29577951308232;
+
+  LOG_VALUE("px, py, pz", _state.pos_end(0), _state.pos_end(1), _state.pos_end(2));
+  LOG_VALUE("roll_deg, pitch_deg, yaw_deg", roll_deg, pitch_deg, yaw_deg);
+  LOG_VALUE("vx, vy, vz", _state.vel_end(0), _state.vel_end(1), _state.vel_end(2));
 }
 
 void LIVMapper::initializeComponents() 
@@ -328,6 +415,8 @@ void LIVMapper::handleVIO()
   publish_img_rgb(pubImage, vio_manager);
 
   euler_cur = RotMtoEuler(_state.rot_end);
+  logStateValue();
+
   fout_out << std::setw(20) << LidarMeasures.last_lio_update_time - _first_lidar_time << " " << euler_cur.transpose() * 57.3 << " "
             << _state.pos_end.transpose() << " " << _state.vel_end.transpose() << " " << _state.bias_g.transpose() << " "
             << _state.bias_a.transpose() << " " << V3D(_state.inv_expo_time, 0, 0).transpose() << " " << feats_undistort->points.size() << std::endl;
@@ -476,6 +565,9 @@ void LIVMapper::handleLIO()
   printf("\033[1;34m+-------------------------------------------------------------+\033[0m\n");
 
   euler_cur = RotMtoEuler(_state.rot_end);
+  if (slam_mode_ != LIVO)
+    logStateValue();
+
   fout_out << std::setw(20) << LidarMeasures.last_lio_update_time - _first_lidar_time << " " << euler_cur.transpose() * 57.3 << " "
             << _state.pos_end.transpose() << " " << _state.vel_end.transpose() << " " << _state.bias_g.transpose() << " "
             << _state.bias_a.transpose() << " " << V3D(_state.inv_expo_time, 0, 0).transpose() << " " << feats_undistort->points.size() << std::endl;
@@ -531,24 +623,24 @@ void LIVMapper::savePCD()
   }
 }
 
+bool LIVMapper::runOnce()
+{
+  if (!sync_packages(LidarMeasures))
+    return false;
+  handleFirstFrame();
+  processImu();
+  stateEstimationAndMapping();
+  return true;
+}
+
 void LIVMapper::run() 
 {
   ros::Rate rate(5000);
   while (ros::ok()) 
   {
     ros::spinOnce();
-    if (!sync_packages(LidarMeasures)) 
-    {
+    if (!runOnce())
       rate.sleep();
-      continue;
-    }
-    handleFirstFrame();
-
-    processImu();
-
-    // if (!p_imu->imu_time_init) continue;
-
-    stateEstimationAndMapping();
   }
   savePCD();
 }

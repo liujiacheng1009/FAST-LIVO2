@@ -1,4 +1,4 @@
-cmake_minimum_required(VERSION 2.8.3)
+cmake_minimum_required(VERSION 3.16)
 project(fast_livo)
 
 set(CMAKE_BUILD_TYPE "Release")
@@ -98,6 +98,10 @@ find_package(PCL REQUIRED)
 find_package(OpenCV REQUIRED)
 find_package(Sophus REQUIRED)
 find_package(Boost REQUIRED COMPONENTS thread)
+find_package(rosbag REQUIRED)
+
+set(LOG_VALUE_BUILD_TESTS OFF CACHE BOOL "" FORCE)
+add_subdirectory(thirdparty/log_value)
 
 set(Sophus_LIBRARIES libSophus.so)
 
@@ -123,9 +127,11 @@ add_library(lio src/voxel_map.cpp)
 add_library(pre src/preprocess.cpp)
 add_library(imu_proc src/IMU_Processing.cpp)
 add_library(laser_mapping src/LIVMapper.cpp)
+target_link_libraries(laser_mapping log_value::log_value)
 
 # Add the main executable
 add_executable(fastlivo_mapping src/main.cpp)
+add_executable(fastlivo_bag src/main_bag.cpp)
 
 # Link libraries to the executable
 target_link_libraries(fastlivo_mapping
@@ -134,7 +140,23 @@ target_link_libraries(fastlivo_mapping
   lio
   pre
   imu_proc
+  log_value::log_value
   ${catkin_LIBRARIES}
+  ${PCL_LIBRARIES}
+  ${OpenCV_LIBRARIES}
+  ${Sophus_LIBRARIES}
+  ${Boost_LIBRARIES}
+)
+
+target_link_libraries(fastlivo_bag
+  laser_mapping
+  vio
+  lio
+  pre
+  imu_proc
+  log_value::log_value
+  ${catkin_LIBRARIES}
+  ${rosbag_LIBRARIES}
   ${PCL_LIBRARIES}
   ${OpenCV_LIBRARIES}
   ${Sophus_LIBRARIES}
@@ -144,4 +166,5 @@ target_link_libraries(fastlivo_mapping
 # Link mimalloc if found
 if(mimalloc_FOUND)
   target_link_libraries(fastlivo_mapping mimalloc)
+  target_link_libraries(fastlivo_bag mimalloc)
 endif()

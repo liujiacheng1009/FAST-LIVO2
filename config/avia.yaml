@@ -72,6 +72,11 @@ publish:
   pub_scan_num: 1
   blind_rgb_points: 0.0
 
+value_log:
+  enable: false
+  dir: ""  # empty -> ./logs (relative to process cwd)
+  also_stderr: false  # false: [VALUE:] only in log files, not printed to shell
+
 evo:
   seq_name: "CBD_Building_01"
   pose_output_en: false

@@ -158,6 +158,20 @@ void plotTrackedPoints(MatImage &img);                  // 不应修改图像
 - 使用 `std::optional` 或 `expected<T, Error>` 模式代替静默返回
 - 在 `retrieveFromVisualSparseMap` 等关键入口添加统计打印（投影点数量、内点比例）
 
+**重构前轨迹日志基线样本（用于回归对照）：**
+
+来源：`/home/jc/Documents/workspace/fastlivo_ws/logs/fastlivo.INFO`（行 `3547-3549`）
+
+```text
+I0602 04:23:31.789686 154019 value_logger.h:53] [VALUE:] [px, py, pz : -0.0186119, 0.0294715, -0.0023518]
+I0602 04:23:31.789700 154019 value_logger.h:53] [VALUE:] [roll_deg, pitch_deg, yaw_deg : 0.16202, 0.144104, 7.17295]
+I0602 04:23:31.789702 154019 value_logger.h:53] [VALUE:] [vx, vy, vz : -0.0164333, 0.00939661, 0.0140374]
+```
+
+对照建议：
+- 重构后保持键名与顺序一致：`px,py,pz` / `roll_deg,pitch_deg,yaw_deg` / `vx,vy,vz`
+- 优先对比时间戳邻域内位姿与速度变化趋势，而非逐字符完全一致
+
 ### 1.10 ROS 接口与消息类型
 
 **现状：**

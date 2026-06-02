@@ -1,0 +1,24 @@
+<launch>
+  <!-- Offline bag playback: no rviz by default, pose/vel logged via log_value -->
+  <arg name="bag" doc="Absolute path to rosbag, e.g. /data/CBD_Building_01.bag" />
+  <arg name="rviz" default="false" />
+  <arg name="value_log_dir" default="./logs" />
+  <arg name="quiet" default="true" />
+
+  <rosparam command="load" file="$(find fast_livo)/config/avia.yaml" />
+
+  <node pkg="fast_livo" type="fastlivo_bag" name="laserMapping" output="screen" required="true">
+    <param name="bag" value="$(arg bag)" />
+    <param name="quiet" value="$(arg quiet)" />
+    <param name="value_log/enable" value="true" />
+    <param name="value_log/dir" value="$(arg value_log_dir)" />
+    <param name="value_log/also_stderr" value="false" />
+    <param name="uav/imu_rate_odom" value="false" />
+    <rosparam file="$(find fast_livo)/config/camera_pinhole.yaml" />
+  </node>
+
+  <group if="$(arg rviz)">
+    <node launch-prefix="nice" pkg="rviz" type="rviz" name="rviz"
+          args="-d $(find fast_livo)/rviz_cfg/fast_livo2.rviz" />
+  </group>
+</launch>

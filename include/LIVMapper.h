@@ -30,6 +30,8 @@ public:
   void initializeComponents();
   void initializeFiles();
   void run();
+  /** One mapping iteration (sync + IMU + LIO/VIO). Returns false if waiting for data. */
+  bool runOnce();
   void gravityAlignment();
   void handleFirstFrame();
   void stateEstimationAndMapping();
@@ -57,6 +59,9 @@ public:
   void publish_mavros(const ros::Publisher &mavros_pose_publisher);
   void publish_path(const ros::Publisher pubPath);
   void readParameters(ros::NodeHandle &nh);
+  void initValueLog(int argc, char **argv);
+  void shutdownValueLog();
+  void logStateValue();
   template <typename T> void set_posestamp(T &out);
   template <typename T> void pointBodyToWorld(const Eigen::Matrix<T, 3, 1> &pi, Eigen::Matrix<T, 3, 1> &po);
   template <typename T> Eigen::Matrix<T, 3, 1> pointBodyToWorld(const Eigen::Matrix<T, 3, 1> &pi);
@@ -183,5 +188,10 @@ public:
   double aver_time_icp = 0;
   double aver_time_map_inre = 0;
   bool colmap_output_en = false;
+
+  bool value_log_en = false;
+  bool value_log_initialized_ = false;
+  std::string value_log_dir;
+  bool value_log_stderr = false;
 };
 #endif
