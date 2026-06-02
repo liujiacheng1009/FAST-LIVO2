@@ -1,0 +1,3 @@
+[submodule "thirdparty/log_value"]
+	path = thirdparty/log_value
+	url = git@github.com:liujiacheng1009/log_value.git
