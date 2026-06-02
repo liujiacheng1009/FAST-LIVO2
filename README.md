@@ -16,6 +16,8 @@ For further inquiries or assistance, please contact [zhengcr@connect.hku.hk](mai
 
 FAST-LIVO2 is an efficient and accurate LiDAR-inertial-visual fusion localization and mapping system, demonstrating significant potential for real-time 3D reconstruction and onboard robotic localization in severely degraded environments.
 
+📖 **中文系统介绍**（特点 / 运行流程 / 算法优劣）：[docs/OVERVIEW_CN.md](docs/OVERVIEW_CN.md)
+
 **Developer**: [Chunran Zheng 郑纯然](https://github.com/xuankuzcr)
 
 <div align="center">
